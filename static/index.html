@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>Kids' YouTube</title>
+<style>
+  :root {
+    --bg:#f5f5f7; --card:#fff; --ink:#1c1c1f; --mute:#6a6a73; --line:#e5e5ea; --soft:#f0f0f3;
+    --red:#d93025; --red-soft:#fdeceb; --green:#188038; --green-soft:#e6f4ea; --amber:#b06000; --amber-soft:#fef3e0;
+    --blue:#1a73e8; --radius:16px; --shadow:0 1px 2px rgba(0,0,0,.05), 0 4px 14px rgba(0,0,0,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111114; --card:#1c1c21; --ink:#f2f2f4; --mute:#a0a0aa; --line:#2d2d34; --soft:#26262c;
+      --red-soft:#3b1a18; --green-soft:#16301f; --amber-soft:#3a2a12; --shadow:none; }
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+  button { font:inherit; color:inherit; cursor:pointer; border:1px solid var(--line); background:var(--card); border-radius:12px; padding:10px 16px; }
+  button:disabled { opacity:.5; cursor:default; }
+  button.primary { background:var(--red); border-color:var(--red); color:#fff; font-weight:600; }
+  button.danger { color:var(--red); border-color:var(--red); background:transparent; font-weight:600; }
+  button.link, a.link { border:0; background:none; padding:4px 6px; color:var(--blue); }
+  button.small { padding:6px 12px; font-size:14px; border-radius:10px; }
+  input[type=text], input[type=search], input[type=password] { font:inherit; color:var(--ink); background:var(--soft); border:1px solid var(--line); border-radius:12px; padding:11px 14px; width:100%; }
+  .muted { color:var(--mute); }
+  .hidden { display:none !important; }
+
+  header { position:sticky; top:0; z-index:5; background:var(--card); border-bottom:1px solid var(--line); }
+  .bar { max-width:980px; margin:0 auto; padding:10px 16px 0; }
+  .brand { display:flex; align-items:center; gap:10px; justify-content:space-between; }
+  .brand h1 { font-size:18px; margin:0; display:flex; align-items:center; gap:10px; white-space:nowrap; }
+  .brand > div { display:flex; flex-wrap:nowrap; }
+  .brand .link { font-size:14px; white-space:nowrap; }
+  .logo { width:28px; height:20px; border-radius:6px; background:var(--red); position:relative; flex:none; }
+  .logo:after { content:""; position:absolute; left:40%; top:50%; transform:translateY(-50%); border-left:8px solid #fff; border-top:4px solid transparent; border-bottom:4px solid transparent; }
+  .tabs { display:flex; gap:8px; overflow-x:auto; padding:10px 0 12px; scrollbar-width:none; }
+  .tab { white-space:nowrap; display:flex; align-items:center; gap:8px; border-radius:999px; padding:8px 16px; background:var(--soft); border:1px solid transparent; font-weight:500; }
+  .tab.on { background:var(--ink); color:var(--bg); }
+  .tab.add { background:transparent; border:1px dashed var(--line); color:var(--mute); }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--mute); flex:none; }
+  .dot.ok { background:#34a853; }
+  .dot.off { background:#f29900; }
+
+  main { max-width:980px; margin:0 auto; padding:18px 16px 60px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); }
+  .pad { padding:18px; }
+
+  .kidhead { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom:14px; }
+  .kidhead h2 { margin:0; font-size:26px; }
+  .status { display:flex; align-items:center; gap:8px; font-size:14px; color:var(--mute); }
+  .pulse { width:9px; height:9px; border-radius:50%; background:#34a853; animation:pulse 2s infinite; flex:none; }
+  @keyframes pulse { 0% { box-shadow:0 0 0 0 rgba(52,168,83,.5);} 70% { box-shadow:0 0 0 8px rgba(52,168,83,0);} 100% { box-shadow:0 0 0 0 rgba(52,168,83,0);} }
+  .headbtns { display:flex; gap:8px; flex-wrap:wrap; }
+
+  .banner { padding:16px 18px; border-radius:var(--radius); display:flex; gap:14px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom:14px; }
+  .banner.warn { background:var(--amber-soft); }
+  .banner.bad { background:var(--red-soft); }
+  .banner b { display:block; }
+
+  /* running task */
+  .task { margin-bottom:14px; border-left:5px solid var(--red); }
+  .task h3 { margin:0; font-size:17px; }
+  .task .top { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+  .bigbar { height:8px; border-radius:99px; background:var(--soft); overflow:hidden; margin:12px 0 6px; }
+  .bigbar > div { height:100%; background:var(--red); border-radius:99px; transition:width .6s; }
+  .steps { list-style:none; margin:10px 0 0; padding:0; }
+  .steps li { display:flex; gap:10px; align-items:flex-start; padding:6px 0; font-size:15px; }
+  .steps .ico { width:22px; height:22px; flex:none; border-radius:50%; display:grid; place-items:center; font-size:13px; font-weight:700; margin-top:1px; }
+  .ico.done { background:var(--green-soft); color:var(--green); }
+  .ico.nothing { background:var(--soft); color:var(--mute); }
+  .ico.partial { background:var(--amber-soft); color:var(--amber); }
+  .ico.failed { background:var(--red-soft); color:var(--red); }
+  .ico.waiting { border:2px solid var(--line); }
+  .ico.running { border:2px solid var(--line); border-top-color:var(--red); animation:spin .8s linear infinite; }
+  .steps .sub { font-size:13px; color:var(--mute); }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .spin { width:14px; height:14px; border-radius:50%; border:2px solid var(--line); border-top-color:var(--red); animation:spin .8s linear infinite; flex:none; display:inline-block; }
+
+  /* view switcher */
+  .views { display:flex; flex-wrap:wrap; gap:4px; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:4px; scrollbar-width:none; }
+  .views button { border:0; background:transparent; padding:9px 12px; border-radius:10px; white-space:nowrap; font-weight:500; color:var(--mute); flex:1; }
+  .views button.on { background:var(--ink); color:var(--bg); }
+  .views .count { font-size:12px; background:var(--red); color:#fff; border-radius:99px; padding:1px 7px; margin-left:4px; }
+  .intro { display:flex; gap:10px; justify-content:space-between; align-items:center; flex-wrap:wrap; margin:16px 2px 10px; }
+  .intro p { margin:0; color:var(--mute); font-size:15px; flex:1; min-width:240px; }
+  .search { margin-bottom:12px; }
+
+  .list { padding:4px 18px; }
+  .item { display:grid; grid-template-columns:150px minmax(0,1fr) auto; gap:14px; align-items:center; padding:14px 0; border-top:1px solid var(--line); }
+  .item:first-child { border-top:0; }
+  @media (max-width: 600px) {
+    .item { grid-template-columns:112px minmax(0,1fr); }
+    .item .go { grid-column:1 / -1; display:flex; gap:8px; }
+    .item .go > * { flex:1; }
+  }
+  .thumb { position:relative; aspect-ratio:16/9; border-radius:10px; overflow:hidden; background:var(--soft); display:block; }
+  .thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+  .badge { position:absolute; left:6px; bottom:6px; font-size:11px; font-weight:700; padding:2px 6px; border-radius:6px; background:rgba(0,0,0,.75); color:#fff; }
+  .new { display:inline-block; font-size:11px; font-weight:700; color:#fff; background:var(--red); border-radius:6px; padding:1px 6px; margin-right:6px; vertical-align:2px; }
+  .title { font-weight:600; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .meta { font-size:14px; color:var(--mute); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .isblocked { opacity:.5; }
+  .pill { font-size:13px; border-radius:999px; padding:4px 12px; background:var(--soft); color:var(--mute); white-space:nowrap; text-align:center; }
+  .pill.red { background:var(--red-soft); color:var(--red); font-weight:600; }
+  .avatar { width:52px; height:52px; border-radius:50%; background:var(--soft); display:grid; place-items:center; font-weight:700; font-size:20px; color:var(--mute); overflow:hidden; flex:none; }
+  .avatar img { width:100%; height:100%; object-fit:cover; }
+  .chrow { display:grid; grid-template-columns:52px minmax(0,1fr) auto; gap:14px; align-items:center; padding:12px 0; border-top:1px solid var(--line); }
+  .chrow:first-child { border-top:0; }
+  .chrow .go { display:flex; gap:8px; }
+  @media (max-width: 600px) { .chrow { grid-template-columns:52px minmax(0,1fr); } .chrow .go { grid-column:1 / -1; } .chrow .go > * { flex:1; } }
+  .empty { text-align:center; padding:44px 16px; color:var(--mute); }
+  .empty h3 { color:var(--ink); margin:8px 0; }
+  .more { text-align:center; padding:14px 0 6px; }
+
+  /* blocked cards */
+  .bcard { padding:18px; margin-bottom:12px; }
+  .bcard .top { display:flex; gap:14px; align-items:center; }
+  .bcard h3 { margin:0; font-size:18px; }
+  .bcard .go { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+  .again { margin-top:10px; padding:10px 12px; background:var(--amber-soft); border-radius:10px; font-size:14px; }
+
+  /* sheets */
+  .overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:flex-end; justify-content:center; z-index:20; }
+  .overlay.open { display:flex; }
+  @media (min-width: 640px) { .overlay { align-items:center; padding:20px; } }
+  .sheet { background:var(--card); width:100%; max-width:520px; border-radius:20px 20px 0 0; padding:22px; max-height:92vh; overflow:auto; }
+  @media (min-width: 640px) { .sheet { border-radius:20px; } }
+  .sheet.wide { max-width:1000px; }
+  .sheet h3 { margin:0 0 6px; font-size:21px; }
+  .sheet p { margin:6px 0; }
+  .sheet .row { display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+  .sheet .row > * { flex:1; }
+  .opt { display:flex; gap:12px; align-items:flex-start; padding:12px; border:1px solid var(--line); border-radius:12px; margin-top:8px; cursor:pointer; }
+  .opt input { width:22px; height:22px; margin:1px 0 0; flex:none; accent-color:var(--red); }
+  .opt b { font-weight:600; display:block; }
+  .opt span { font-size:14px; color:var(--mute); }
+  .note { font-size:14px; color:var(--mute); background:var(--soft); border-radius:12px; padding:10px 12px; margin-top:12px; }
+  #screen { display:block; max-width:100%; max-height:56vh; margin:10px auto; border-radius:10px; border:1px solid var(--line); cursor:crosshair; background:#000; min-height:120px; }
+  .keys { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; align-items:center; }
+  .keys button { flex:none; }
+  ol.how { padding-left:22px; margin:8px 0; font-size:15px; }
+  ol.how li { margin:3px 0; }
+  .act { padding:10px 0; border-top:1px solid var(--line); }
+  .act:first-child { border-top:0; }
+  pre.log { background:var(--soft); border-radius:10px; padding:10px; max-height:260px; overflow:auto; white-space:pre-wrap; font-size:12px; margin:8px 0 0; }
+  details summary { cursor:pointer; color:var(--mute); font-size:14px; }
+
+  /* sign-in page */
+  .gate { min-height:100vh; display:grid; place-items:center; padding:20px; }
+  .gate .card { width:100%; max-width:380px; padding:28px; text-align:center; }
+  .gate h1 { font-size:22px; margin:14px 0 4px; }
+  .gate input { margin-top:18px; text-align:center; }
+  .gate button { width:100%; margin-top:12px; }
+  .err { color:var(--red); font-size:14px; min-height:20px; margin-top:8px; }
+
+  .toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:var(--ink); color:var(--bg); padding:12px 18px; border-radius:14px; font-size:15px; z-index:30; opacity:0; transition:opacity .2s; pointer-events:none; max-width:90vw; text-align:center; }
+  .toast.show { opacity:1; }
+</style>
+</head>
+<body>
+
+<!-- password sign-in -->
+<div class="gate hidden" id="gate">
+  <form class="card" id="gateForm">
+    <span class="logo" style="display:inline-block;width:44px;height:31px;border-radius:9px"></span>
+    <h1>Kids' YouTube</h1>
+    <div class="muted">Enter the family password to continue.</div>
+    <input type="password" id="gatePw" placeholder="Password" autocomplete="current-password" required>
+    <button class="primary" type="submit" id="gateGo">Sign in</button>
+    <div class="err" id="gateErr"></div>
+  </form>
+</div>
+
+<div id="app" class="hidden">
+<header>
+  <div class="bar">
+    <div class="brand">
+      <h1><span class="logo"></span> Kids' YouTube</h1>
+      <div>
+        <button class="link" id="helpBtn">How it works</button>
+        <button class="link hidden" id="logoutBtn">Sign out</button>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs"></nav>
+  </div>
+</header>
+
+<main>
+  <div id="kidHead"></div>
+  <div id="banners"></div>
+  <div id="tasks"></div>
+  <div id="viewWrap">
+    <nav class="views" id="views"></nav>
+    <div class="intro"><p id="introText"></p><div id="introBtns"></div></div>
+    <div class="search"><input type="search" id="q" placeholder="Search"></div>
+    <div id="list"></div>
+  </div>
+</main>
+</div>
+
+<!-- add child -->
+<div class="overlay" id="addSheet"><div class="sheet" role="dialog" aria-modal="true" tabindex="-1">
+  <h3>Add a child</h3>
+  <p class="muted">Type their name. Next you'll sign in to their YouTube (Google) account once, and their watch history will start showing up here.</p>
+  <input type="text" id="addName" placeholder="Their name, e.g. Alex" maxlength="40" style="margin-top:10px">
+  <div class="row"><button data-close>Cancel</button><button class="primary" id="addGo">Next: sign in</button></div>
+</div></div>
+
+<!-- settings -->
+<div class="overlay" id="editSheet"><div class="sheet" role="dialog" aria-modal="true" tabindex="-1">
+  <h3 id="editTitle">Settings</h3>
+  <label class="muted" style="font-size:14px;display:block;margin-top:10px">Name</label>
+  <div style="display:flex;gap:8px"><input type="text" id="editName" maxlength="40"><button id="editSave">Save</button></div>
+  <label class="opt" style="margin-top:14px"><input type="checkbox" id="editAuto">
+    <div><b>Keep blocked channels cleaned up</b><span id="editAutoHelp"></span></div></label>
+  <label class="opt"><input type="checkbox" id="editShorts">
+    <div><b>Hide Shorts</b><span id="editShortsHelp"></span><span id="editShortsStatus" style="display:block;margin-top:6px"></span></div></label>
+  <div class="row"><button id="editSignin">Sign in to YouTube again</button></div>
+  <div class="row"><button class="danger" id="editRemove">Remove from this website</button></div>
+  <div class="row"><button data-close>Close</button></div>
+</div></div>
+
+<!-- block -->
+<div class="overlay" id="blockSheet"><div class="sheet" role="dialog" aria-modal="true" tabindex="-1">
+  <h3 id="bTitle">Block channel?</h3>
+  <p class="muted" id="bSub"></p>
+  <div id="bOpts"></div>
+  <div class="note" id="bNote"></div>
+  <div class="row"><button data-close>Cancel</button><button class="primary" id="bGo">Block channel</button></div>
+</div></div>
+
+<!-- simple confirm -->
+<div class="overlay" id="askSheet"><div class="sheet" role="dialog" aria-modal="true" tabindex="-1">
+  <h3 id="askTitle"></h3>
+  <p class="muted" id="askText"></p>
+  <div class="row"><button data-close id="askNo">Cancel</button><button class="primary" id="askYes">OK</button></div>
+</div></div>
+
+<!-- activity -->
+<div class="overlay" id="actSheet"><div class="sheet" role="dialog" aria-modal="true" tabindex="-1">
+  <h3>Recent activity</h3>
+  <p class="muted">What this website has done recently. Tap one to see the details.</p>
+  <div id="actList" style="margin-top:10px"></div>
+  <div class="row"><button data-close>Close</button></div>
+</div></div>
+
+<!-- help -->
+<div class="overlay" id="helpSheet"><div class="sheet" role="dialog" aria-modal="true" tabindex="-1">
+  <h3>How this works</h3>
+  <p>YouTube doesn't let parents block a channel on a regular account. This website does the next best thing: it stays signed in to each child's YouTube and does, for you, everything YouTube allows to push a channel away.</p>
+  <p><b>When you block a channel, it can:</b></p>
+  <ol class="how">
+    <li>Remove every video from it in your child's watch history, so it stops shaping their suggestions.</li>
+    <li>Unsubscribe from it.</li>
+    <li>Remove their likes on its videos.</li>
+    <li>Give its newest videos a thumbs down.</li>
+    <li>Tell YouTube "Don't recommend this channel" on their homepage.</li>
+  </ol>
+  <p><b>Good to know</b></p>
+  <ul class="how">
+    <li><b>Shorts:</b> YouTube has no switch to turn Shorts off. "Hide Shorts" (in each child's Settings) hides the Shorts shelf on their homepage and removes Shorts from their watch history so YouTube suggests fewer of them. YouTube brings the shelf back after about 30 days, so the website hides it again every few hours. Shorts can still be reached through the Shorts button or by searching.</li>
+    <li>Your child can still find the channel by searching for it. If that happens and "Keep blocked channels cleaned up" is on (in each child's Settings), the website notices within a few minutes and cleans up again.</li>
+    <li>If a step shows a warning, tap <b>Run again</b> later. YouTube sometimes doesn't show the button the website needs.</li>
+    <li>For a child under 13 with a Google Family Link account, you can also block a channel outright in the Family Link app. That is stronger, and this website handles everything Family Link doesn't.</li>
+    <li>Everything runs on our own server, so you can close this page while it works.</li>
+  </ul>
+  <div class="row"><button data-close>Got it</button></div>
+</div></div>
+
+<!-- sign in to YouTube (remote browser) -->
+<div class="overlay" id="signSheet"><div class="sheet wide" role="dialog" aria-modal="true" tabindex="-1">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+    <h3 id="sTitle" style="margin:0">Sign in to YouTube</h3>
+    <button class="primary" id="sDone">I'm done</button>
+  </div>
+  <ol class="how muted" style="font-size:14px">
+    <li>The picture below is a browser on our server. Tap a box in it (like the email box) to select it.</li>
+    <li>Type in the box under the picture and press <b>Send</b>.</li>
+    <li>Once you see YouTube with your child's picture at the top right, press <b>I'm done</b>.</li>
+  </ol>
+  <img id="screen" alt="Browser on the server">
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <input type="password" id="sText" placeholder="Type here, then press Send" autocomplete="off" style="flex:1;min-width:180px">
+    <button class="primary" id="sSendEnter">Send</button>
+  </div>
+  <div class="keys">
+    <label class="muted" style="font-size:14px;display:flex;gap:6px;align-items:center"><input type="checkbox" id="sShow"> show what I type</label>
+    <button class="small" id="sSendOnly" title="Type without pressing Enter">Send without Enter</button>
+    <button class="small" data-key="Tab">Tab</button>
+    <button class="small" data-key="Backspace">⌫ Delete</button>
+    <button class="small" id="sUp">Scroll up</button><button class="small" id="sDown">Scroll down</button>
+    <button class="small" id="sBack">Go back</button>
+  </div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const keyOf = (url, name) => url ? url.toLowerCase() : 'name:' + (name || '').trim().toLowerCase();
+const ago = (t) => { if (!t) return ''; const s = Math.max(0, Date.now()/1000 - t);
+  if (s < 60) return 'just now'; if (s < 3600) return Math.floor(s/60) + ' min ago';
+  if (s < 86400) { const h = Math.floor(s/3600); return h + (h === 1 ? ' hour ago' : ' hours ago'); }
+  const d = Math.floor(s/86400); return d + (d === 1 ? ' day ago' : ' days ago'); };
+const when = (t) => t ? new Date(t * 1000).toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '';
+const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+
+// Steps in the order they're shown to people (the server runs them in its own order).
+const STEP_ORDER = ['history', 'unsubscribe', 'likes', 'dislike', 'dont_recommend'];
+const STEP = {
+  history:        { title: k => `Remove it from ${k}'s watch history`, help: 'Watch history decides a lot of what YouTube suggests. Every video from this channel is removed.', short: 'Watch history' },
+  unsubscribe:    { title: () => 'Unsubscribe',                          help: k => `Its new videos stop appearing in ${k}'s subscriptions.`, short: 'Subscription' },
+  likes:          { title: k => `Remove ${k}'s likes on its videos`,    help: 'Likes tell YouTube to show more of the same.', short: 'Likes' },
+  dislike:        { title: () => 'Give its newest videos a thumbs down', help: 'A strong "not for us" signal to YouTube. Adds a few minutes.', short: 'Thumbs down' },
+  dont_recommend: { title: () => 'Tell YouTube "Don\'t recommend this channel"', help: k => `The option YouTube gives on ${k}'s homepage for hiding a channel.`, short: "Don't recommend" },
+};
+const ICON = { done:'✓', nothing:'–', partial:'!', failed:'✕', waiting:'', running:'' };
+
+let S = { accounts: [], feed: [], blocked: [], subs: {items:[]}, home: {items:[]}, active_jobs: [], recent_jobs: [] };
+let cur = localStorage.getItem('acct') || '';
+let view = localStorage.getItem('view') || 'watched';
+let query = '', showN = 50, pendingBlock = null, seenJobs = new Set(), firstLoad = true, lastSig = {}, timer = null;
+
+class SignedOut extends Error {}
+async function api(path, body) {
+  const opt = body === undefined ? {} : { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) };
+  const r = await fetch(path, opt);
+  const data = await r.json().catch(() => ({ error: r.status + ' ' + r.statusText }));
+  if (r.status === 401 && data.error === 'signed_out') throw new SignedOut();
+  if (!r.ok) throw new Error(data.error || r.statusText);
+  return data;
+}
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 4500); }
+// Sheets are modal dialogs: focus moves into them, the page behind is inert,
+// Escape closes them, and focus goes back to where it was.
+const sheetReturn = {};
+function syncInert() { const anyOpen = !!document.querySelector('.overlay.open'); $('app').inert = anyOpen; $('gate').inert = anyOpen; }
+function openSheet(id) {
+  const o = $(id), sheet = o.querySelector('.sheet');
+  if (!o.classList.contains('open')) sheetReturn[id] = document.activeElement;
+  const h = sheet.querySelector('h3'); if (h) { h.id = h.id || id + 'Title'; sheet.setAttribute('aria-labelledby', h.id); }
+  o.classList.add('open'); syncInert();
+  setTimeout(() => (sheet.querySelector('input:not([type=checkbox]), button.primary, button') || sheet).focus(), 30);
+}
+function closeSheet(id) {
+  const o = $(id); if (!o.classList.contains('open')) return;
+  o.classList.remove('open'); syncInert();
+  const back = sheetReturn[id]; delete sheetReturn[id];
+  if (back && document.contains(back) && back.focus) back.focus();
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const open = [...document.querySelectorAll('.overlay.open')].pop();
+  if (open && open.id !== 'signSheet') { if (open.id === 'askSheet') $('askNo').click(); else closeSheet(open.id); }
+});
+document.querySelectorAll('.overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o && o.id !== 'signSheet') closeSheet(o.id); });
+  o.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => closeSheet(o.id)));
+});
+function ask(title, text, yes, danger) {
+  return new Promise(resolve => {
+    $('askTitle').textContent = title; $('askText').textContent = text; $('askYes').textContent = yes || 'OK';
+    $('askYes').className = danger ? 'danger' : 'primary';
+    $('askYes').onclick = () => { closeSheet('askSheet'); resolve(true); };
+    $('askNo').onclick = () => resolve(false);
+    openSheet('askSheet');
+  });
+}
+
+const acct = () => S.accounts.find(a => a.id === cur);
+const kid = () => acct()?.name || 'your child';
+// A known channel link decides; the name only counts when a link is missing.
+const isBlocked = (url, name) => S.blocked.some(b => (url && b.url) ? b.url.toLowerCase() === url.toLowerCase()
+  : !!name && !!b.name && b.name.trim().toLowerCase() === name.trim().toLowerCase());
+const myJobs = () => S.active_jobs.filter(j => j.account === cur);
+const busy = (kind) => myJobs().some(j => !kind || j.kind === kind);
+const snapBusy = (what) => myJobs().some(j => j.kind === 'snapshot' && (j.label || '').includes(what === 'subs' ? 'subscriptions' : 'homepage'));
+
+// ---------- password gate
+function showGate() {
+  document.querySelectorAll('.overlay.open').forEach(o => closeSheet(o.id)); clearInterval(screenTimer); $('screen').removeAttribute('src');
+  $('app').classList.add('hidden'); $('gate').classList.remove('hidden'); clearInterval(timer); timer = null; setTimeout(() => $('gatePw').focus(), 50); }
+$('gateForm').onsubmit = async (e) => {
+  e.preventDefault(); $('gateErr').textContent = ''; $('gateGo').disabled = true;
+  try { await api('/api/session', { password: $('gatePw').value }); $('gatePw').value = ''; $('gate').classList.add('hidden'); start(); }
+  catch (err) { $('gateErr').textContent = err.message; }
+  finally { $('gateGo').disabled = false; }
+};
+$('logoutBtn').onclick = async () => { await api('/api/logout', {}).catch(() => {}); showGate(); };
+$('helpBtn').onclick = () => openSheet('helpSheet');
+
+// ---------- header
+function renderTabs() {
+  $('tabs').innerHTML = S.accounts.map(a => {
+    const cls = a.signed_in === true ? 'ok' : a.signed_in === false ? 'off' : '';
+    return `<button class="tab ${a.id === cur ? 'on' : ''}" data-id="${esc(a.id)}"><span class="dot ${cls}"></span>${esc(a.name)}</button>`;
+  }).join('') + `<button class="tab add" id="addTab">+ Add a child</button>`;
+  $('tabs').querySelectorAll('[data-id]').forEach(b => b.onclick = () => {
+    if (b.dataset.id === cur) return;
+    cur = b.dataset.id; localStorage.setItem('acct', cur); showN = 50; query = ''; $('q').value = '';
+    S.feed = []; S.blocked = []; S.subs = {items:[]}; S.home = {items:[]}; lastSig = {}; render(); refresh().then(maybeSnapshot).catch(() => {});
+  });
+  $('addTab').onclick = () => { $('addName').value = ''; openSheet('addSheet'); setTimeout(() => $('addName').focus(), 50); };
+}
+
+function renderKidHead() {
+  const a = acct();
+  if (!a) { $('kidHead').innerHTML = ''; $('banners').innerHTML = ''; return; }
+  const polling = busy('poll');
+  let status;
+  if (a.signed_in === false) status = `<span class="dot off"></span> Not signed in to YouTube`;
+  else if (a.poll_error) status = `<span class="dot off"></span> Couldn't check YouTube ${ago(a.last_poll)}. Trying again soon.`;
+  else if (a.last_poll) status = `<span class="pulse"></span> Watching their history · last checked ${polling ? 'just now' : ago(a.last_poll)}`;
+  else status = `<span class="spin"></span> Connecting to YouTube…`;
+  $('kidHead').innerHTML = `<div class="kidhead">
+      <div><h2>${esc(a.name)}</h2><div class="status">${status}</div></div>
+      <div class="headbtns">
+        <button class="small" id="actBtn">Recent activity</button>
+        <button class="small" id="editBtn">Settings</button>
+      </div></div>`;
+  $('actBtn').onclick = () => { renderActivity(); openSheet('actSheet'); };
+  $('editBtn').onclick = openSettings;
+  $('banners').innerHTML = a.signed_in === false ? `<div class="banner warn"><div><b>${esc(a.name)}'s YouTube needs signing in again.</b>
+      <span class="muted" style="font-size:15px">Until then nothing can be checked or blocked for ${esc(a.name)}.</span></div>
+      <button class="primary" id="signBtn">Sign in now</button></div>` : '';
+  if ($('signBtn')) $('signBtn').onclick = () => startSignin(cur);
+}
+
+// ---------- running tasks
+function stepRow(k, st, kidName) {
+  st = st || { state:'waiting' };
+  const sub = st.note && st.state === 'running' ? st.note : (st.state !== 'running' && st.state !== 'waiting' ? st.note : '');
+  return `<li><span class="ico ${esc(st.state)}">${ICON[st.state] || ''}</span>
+    <div><div>${esc(STEP[k].title(kidName))}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}</div></li>`;
+}
+function renderTasks() {
+  const jobs = myJobs().filter(j => ['block', 'login', 'delete'].includes(j.kind) || (j.kind === 'shorts' && j.state === 'running'));
+  $('tasks').innerHTML = jobs.map(j => {
+    if (j.kind === 'shorts') return `<div class="card pad task"><div class="top"><div><h3><span class="spin"></span> Hiding Shorts for ${esc(kid())}</h3>
+      <div class="muted" style="font-size:14px;margin-top:4px">${esc((j.progress || {}).phase || 'Starting')}…</div></div>
+      <button class="small" data-stop="${esc(j.id)}">Stop</button></div></div>`;
+    if (j.kind !== 'block') return `<div class="card pad task"><div class="top"><h3><span class="spin"></span> ${esc(j.label)}…</h3></div></div>`;
+    const p = j.progress || {}, chans = p.channels || [], order = p.steps || [];
+    if (j.state === 'queued' || !chans.length) {
+      return `<div class="card pad task"><div class="top"><div><h3>${esc(j.label)}</h3>
+        <div class="muted" style="font-size:14px;margin-top:4px">${j.state === 'queued' ? 'Waiting for the task before it to finish…' : esc(p.phase || 'Starting…') + '…'}</div></div>
+        <button class="small" data-stop="${esc(j.id)}">${j.state === 'queued' ? 'Cancel' : 'Stop'}</button></div>
+        <div class="bigbar"><div style="width:3%"></div></div></div>`;
+    }
+    let total = 0, done = 0;
+    chans.forEach(c => order.forEach(k => { total++; const s = (c.steps[k] || {}).state;
+      if (s && s !== 'waiting' && s !== 'running') done++; else if (s === 'running') done += 0.4; }));
+    const ci = p.current ?? (p.phase === 'Finished' ? chans.length - 1 : 0), c = chans[ci] || chans[0];
+    const multi = chans.length > 1 ? `<div class="muted" style="font-size:14px">Channel ${ci + 1} of ${chans.length}: <b>${esc(c.name)}</b></div>` : '';
+    return `<div class="card pad task">
+      <div class="top"><div><h3>${esc(j.label)}</h3>${multi}
+        ${p.phase && p.phase !== 'Finished' ? `<div class="muted" style="font-size:14px;margin-top:4px"><span class="spin"></span> ${esc(p.phase)}…</div>` : ''}</div>
+        <button class="small" data-stop="${esc(j.id)}">Stop</button></div>
+      <div class="bigbar"><div style="width:${Math.max(3, Math.round(100 * done / Math.max(1, total)))}%"></div></div>
+      <div class="muted" style="font-size:13px">This takes a few minutes. You can close this page; it keeps going.</div>
+      <ul class="steps">${order.map(k => stepRow(k, c.steps[k], kid())).join('')}</ul>
+    </div>`;
+  }).join('');
+  $('tasks').querySelectorAll('[data-stop]').forEach(b => b.onclick = async () => {
+    if (!await ask('Stop this task?', 'Anything already done stays done. You can run it again from the Blocked tab.', 'Stop', true)) return;
+    api(`/api/jobs/${b.dataset.stop}/cancel`, {}).then(refresh).catch(e => toast(e.message));
+  });
+}
+
+// ---------- views
+const VIEWS = [
+  ['watched',  'Watched'],
+  ['channels', 'Channels'],
+  ['subs',     'Subscriptions'],
+  ['home',     'Suggested'],
+  ['blocked',  'Blocked'],
+];
+function renderViews() {
+  $('views').innerHTML = VIEWS.map(([k, label]) => `<button data-v="${k}" class="${view === k ? 'on' : ''}">${label}${k === 'blocked' && S.blocked.length ? `<span class="count">${S.blocked.length}</span>` : ''}</button>`).join('');
+  $('views').querySelectorAll('button').forEach(b => b.onclick = () => { view = b.dataset.v; localStorage.setItem('view', view); showN = 50; lastSig = {}; renderViews(); renderList(); maybeSnapshot(); });
+}
+
+function maybeSnapshot() {
+  if (!acct() || acct().signed_in === false) return;
+  const what = view === 'subs' ? 'subs' : view === 'home' ? 'home' : null;
+  if (!what) return;
+  const snap = S[what] || {};
+  if ((!snap.at || Date.now()/1000 - snap.at > 1800) && !snapBusy(what)) snapshotNow(what);
+}
+function snapshotNow(what) { api(`/api/accounts/${cur}/snapshot`, { what }).then(refresh).catch(e => toast(e.message)); }
+
+const thumb = (f) => `<a class="thumb" href="https://www.youtube.com/${f.short ? 'shorts/' : 'watch?v='}${esc(f.vid)}" target="_blank" rel="noopener noreferrer">
+  <img loading="lazy" src="https://i.ytimg.com/vi/${esc(f.vid)}/mqdefault.jpg" alt="" onerror="this.style.visibility='hidden'">${f.short ? '<span class="badge">SHORT</span>' : ''}</a>`;
+const initial = (n) => esc((n || '?').replace('@', '').slice(0, 1).toUpperCase());
+const blockBtn = (attrs) => `<button class="primary small" ${attrs}>Block channel</button>`;
+const match = (...fields) => { const q = query.trim().toLowerCase(); return !q || fields.some(f => (f || '').toLowerCase().includes(q)); };
+
+function renderList() {
+  const a = acct();
+  $('viewWrap').classList.toggle('hidden', !a);
+  if (!a) {
+    $('tasks').innerHTML = '';
+    $('kidHead').innerHTML = `<div class="card empty"><div style="font-size:44px">👋</div><h3>Welcome! Let's add your first child.</h3>
+      <p>You'll sign in to their YouTube account once. After that their watch history shows up here, and you can block any channel with one tap.</p>
+      <button class="primary" id="welcomeAdd">+ Add a child</button></div>`;
+    $('welcomeAdd').onclick = () => $('addTab').click();
+    return;
+  }
+  const sig = JSON.stringify([view, query, showN, cur, S.feed.length && S.feed[0], S.feed.length, S.blocked, S.subs, S.home, a.signed_in, a.last_poll && Math.floor(a.last_poll / 60), myJobs().map(j => j.kind + j.state), Math.floor(Date.now() / 60000)]);
+  if (sig === lastSig.list) return;
+  lastSig.list = sig;
+  const k = esc(a.name);
+  let intro = '', btns = '', html = '';
+  $('q').placeholder = { watched:'Search videos or channels', channels:'Search channels', subs:'Search subscriptions', home:'Search suggestions', blocked:'Search blocked channels' }[view];
+
+  if (view === 'watched') {
+    intro = `Everything ${k} has watched, newest first. Tap <b>Block channel</b> on anything you don't want them seeing again.`;
+    const rows = S.feed.filter(f => match(f.title, f.channel));
+    if (!S.feed.length) html = emptyMsg(a, busy('poll') || !a.last_poll ? `Reading ${k}'s watch history…` : `Nothing in ${k}'s watch history yet. If they've been watching, check that watch history is turned on in their YouTube settings.`);
+    else if (!rows.length) html = `<div class="empty">Nothing matches "${esc(query)}".</div>`;
+    else {
+      html = `<div class="card list">` + rows.slice(0, showN).map((f, i) => {
+        const b = isBlocked(f.url, f.channel);
+        const isNew = f.seen && (Date.now()/1000 - f.seen) < 3600;
+        const ch = f.channel || (f.short ? 'Short (channel shown after you tap Block)' : 'Unknown channel');
+        return `<div class="item ${b ? 'isblocked' : ''}">${thumb(f)}
+          <div style="min-width:0"><div class="title">${isNew ? '<span class="new">NEW</span>' : ''}${esc(f.title || 'Untitled')}</div>
+            <div class="meta">${esc(ch)}${f.seen ? ' · watched ' + ago(f.seen) : ''}</div></div>
+          <div class="go">${b ? '<span class="pill red">Blocked</span>' : blockBtn(`data-w="${i}"`)}</div></div>`;
+      }).join('') + `</div>`;
+      html += rows.length > showN ? `<div class="more"><button id="showMore">Show more</button></div>`
+        : `<div class="more"><button id="older" ${busy() ? 'disabled' : ''}>Look further back in their history</button></div>`;
+    }
+    $('list')._rows = rows;
+    btns = `<button class="small" id="checkNow" ${busy('poll') ? 'disabled' : ''}>${busy('poll') ? 'Checking…' : 'Check now'}</button>`;
+  }
+
+  else if (view === 'channels') {
+    intro = `Every channel ${k} has watched, most-watched first.`;
+    const subs = new Set((S.subs.items || []).map(s => keyOf(s.url, s.name)));
+    const map = new Map();
+    for (const f of S.feed) { if (!f.url && !f.channel) continue; const key = keyOf(f.url, f.channel);
+      const e = map.get(key) || { name: f.channel || f.url, url: f.url, n: 0, last: 0, vid: f.vid }; e.n++; e.last = Math.max(e.last, f.seen || 0); map.set(key, e); }
+    const rows = [...map.entries()].filter(([, c]) => match(c.name)).sort((x, y) => y[1].n - x[1].n).map(([key, c]) => ({ ...c, sub: subs.has(key) }));
+    html = !S.feed.length ? emptyMsg(a, `Reading ${k}'s watch history…`) : !rows.length ? `<div class="empty">No channels found.</div>`
+      : `<div class="card list">` + rows.map((c, i) => { const b = isBlocked(c.url, c.name);
+        return `<div class="chrow ${b ? 'isblocked' : ''}"><div class="avatar">${initial(c.name)}</div>
+          <div style="min-width:0"><div class="title">${esc(c.name)}</div><div class="meta">${plural(c.n, 'video')} watched${c.sub ? ' · subscribed' : ''}</div></div>
+          <div class="go">${b ? '<span class="pill red">Blocked</span>' : blockBtn(`data-c="${i}"`)}</div></div>`; }).join('') + `</div>`;
+    $('list')._chans = rows;
+  }
+
+  else if (view === 'subs') {
+    const s = S.subs || { items:[] }, loading = snapBusy('subs');
+    intro = `Channels ${k} is subscribed to${s.at ? ` · checked ${ago(s.at)}` : ''}. <b>Unsubscribe</b> just removes the subscription; <b>Block channel</b> does the full clean-up.`;
+    btns = `<button class="small" id="snapBtn" ${loading ? 'disabled' : ''}>${loading ? 'Checking…' : 'Check again'}</button>`;
+    const rows = (s.items || []).filter(c => match(c.name));
+    html = !s.at ? emptyMsg(a, `Looking up ${k}'s subscriptions…`) : !(s.items || []).length ? `<div class="empty">${k} isn't subscribed to any channels.</div>`
+      : !rows.length ? `<div class="empty">No subscriptions match.</div>`
+      : `<div class="card list">` + rows.map((c, i) => { const b = isBlocked(c.url, c.name);
+        return `<div class="chrow ${b ? 'isblocked' : ''}"><div class="avatar">${c.avatar ? `<img src="${esc(c.avatar)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : initial(c.name)}</div>
+          <div style="min-width:0"><div class="title">${esc(c.name)}</div><div class="meta"><a href="https://www.youtube.com${esc(c.url)}" target="_blank" rel="noopener noreferrer" class="muted">Open on YouTube</a></div></div>
+          <div class="go">${b ? '<span class="pill red">Blocked</span>' : `<button class="small" data-u="${i}">Unsubscribe</button>${blockBtn(`data-s="${i}"`)}`}</div></div>`; }).join('') + `</div>`;
+    $('list')._subs = rows;
+  }
+
+  else if (view === 'home') {
+    const h = S.home || { items:[] }, loading = snapBusy('home');
+    intro = `What YouTube is suggesting on ${k}'s homepage${h.at ? ` · checked ${ago(h.at)}` : ''}. Block anything that shouldn't be there.`;
+    btns = `<button class="small" id="snapBtn" ${loading ? 'disabled' : ''}>${loading ? 'Checking…' : 'Check again'}</button>`;
+    const rows = (h.items || []).filter(f => match(f.title, f.channel));
+    html = !h.at ? emptyMsg(a, `Looking at ${k}'s homepage…`) : !rows.length ? `<div class="empty">No suggestions found${query ? ' that match' : ''}.</div>`
+      : `<div class="card list">` + rows.map((f, i) => { const b = isBlocked(f.url, f.channel);
+        return `<div class="item ${b ? 'isblocked' : ''}">${thumb(f)}
+          <div style="min-width:0"><div class="title">${esc(f.title || 'Untitled')}</div><div class="meta">${esc(f.channel || (f.short ? 'Short' : ''))}</div></div>
+          <div class="go">${b ? '<span class="pill red">Blocked</span>' : blockBtn(`data-h="${i}"`)}</div></div>`; }).join('') + `</div>`;
+    $('list')._home = rows;
+  }
+
+  else if (view === 'blocked') {
+    intro = S.blocked.length ? `Channels you've blocked for ${k}, and what was done for each.` : '';
+    btns = S.blocked.length > 1 ? `<button class="small" id="runAll" ${busy('block') ? 'disabled' : ''}>Run all again</button>` : '';
+    const rows = S.blocked.slice().sort((x, y) => (y.last_run || y.blocked_ts || 0) - (x.last_run || x.blocked_ts || 0)).filter(b => match(b.name));
+    html = !S.blocked.length ? `<div class="card empty"><div style="font-size:40px">🛡️</div><h3>Nothing blocked yet</h3>
+        <p>Find a channel in <b>Watched</b>, <b>Channels</b>, <b>Subscriptions</b> or <b>Suggested</b> and tap <b>Block channel</b>.</p></div>`
+      : !rows.length ? `<div class="empty">No blocked channels match.</div>` : rows.map(blockedCard).join('');
+    $('list')._blocked = rows;
+  }
+
+  $('introText').innerHTML = intro;
+  $('introBtns').innerHTML = btns;
+  $('list').innerHTML = html;
+  wireList();
+}
+
+function emptyMsg(a, text) {
+  if (a.signed_in === false) return `<div class="card empty">Sign in to ${esc(a.name)}'s YouTube to see this.</div>`;
+  return `<div class="card empty"><span class="spin"></span><p>${text}</p></div>`;
+}
+
+function blockedCard(b, i) {
+  const steps = b.steps || {};
+  const lines = STEP_ORDER.filter(k => steps[k]).map(k => {
+    const s = steps[k];
+    return `<li><span class="ico ${esc(s.state)}">${ICON[s.state] || ''}</span><div><div>${esc(STEP[k].short)}</div><div class="sub">${esc(s.note || '')}</div></div></li>`;
+  }).join('');
+  const warn = STEP_ORDER.some(k => steps[k] && (steps[k].state === 'partial' || steps[k].state === 'failed'));
+  const since = b.last_run ? `Last cleaned up ${ago(b.last_run)}` : '';
+  const again = b.seen_again_at ? `<div class="again">${esc(kid())} watched this channel again ${ago(b.seen_again_at)}.${b.auto_runs ? ' It was cleaned up automatically.' : ''}</div>` : '';
+  return `<div class="card bcard"><div class="top">
+      <div class="avatar">${initial(b.name)}</div>
+      <div style="min-width:0;flex:1"><h3>${esc(b.name)}</h3><div class="meta" style="white-space:normal">Blocked ${esc(b.blocked_ts ? when(b.blocked_ts) : (b.blocked_at || ''))}${since ? ' · ' + since : ''}</div></div>
+      ${warn ? '<span class="pill" style="background:var(--amber-soft);color:var(--amber)">Needs another try</span>' : ''}</div>
+    ${lines ? `<ul class="steps">${lines}</ul>` : '<p class="muted" style="font-size:14px">Blocked with an older version of this website. Tap Run again to see the details.</p>'}
+    ${again}
+    <div class="go"><button class="small" data-again="${i}" ${busy('block') ? 'disabled' : ''}>Run again</button>
+      <a class="small link" href="https://www.youtube.com${esc(b.url)}" target="_blank" rel="noopener noreferrer" style="align-self:center;margin:0 8px;text-decoration:none">Open on YouTube</a>
+      <button class="small link" style="margin-left:auto;color:var(--mute)" data-unblock="${i}">Unblock</button></div>
+  </div>`;
+}
+
+function wireList() {
+  const L = $('list');
+  if ($('checkNow')) $('checkNow').onclick = () => api(`/api/accounts/${cur}/refresh`, {}).then(() => { toast('Checking YouTube now…'); refresh(); }).catch(e => toast(e.message));
+  if ($('older')) $('older').onclick = () => api(`/api/accounts/${cur}/refresh`, { deep:true }).then(() => { toast('Reading further back. This takes a minute.'); refresh(); }).catch(e => toast(e.message));
+  if ($('showMore')) $('showMore').onclick = () => { showN += 50; renderList(); };
+  if ($('snapBtn')) $('snapBtn').onclick = () => snapshotNow(view);
+  if ($('runAll')) $('runAll').onclick = async () => {
+    if (!await ask(`Run all ${S.blocked.length} again?`, `Repeats the clean-up for every blocked channel on ${kid()}'s account. This can take a while.`, 'Run all again')) return;
+    api(`/api/accounts/${cur}/block`, { reapply:true, steps: savedSteps() }).then(refresh).catch(e => toast(e.message));
+  };
+  L.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { const f = L._rows[+b.dataset.w];
+    askBlock({ name: f.channel, url: f.url, vid: f.vid }, f.title); });
+  L.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { const c = L._chans[+b.dataset.c]; askBlock({ name: c.name, url: c.url, vid: c.vid }); });
+  L.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { const c = L._subs[+b.dataset.s]; askBlock({ name: c.name, url: c.url }); });
+  L.querySelectorAll('[data-h]').forEach(b => b.onclick = () => { const f = L._home[+b.dataset.h]; askBlock({ name: f.channel, url: f.url, vid: f.vid }, f.title); });
+  L.querySelectorAll('[data-u]').forEach(b => b.onclick = async () => { const c = L._subs[+b.dataset.u];
+    if (!await ask(`Unsubscribe from ${c.name}?`, `${kid()} will no longer be subscribed. Nothing else changes.`, 'Unsubscribe')) return;
+    api(`/api/accounts/${cur}/block`, { channels:[{ name:c.name, url:c.url }], steps:{ unsubscribe:true }, record:false })
+      .then(() => { toast('Unsubscribing…'); refresh(); }).catch(e => toast(e.message)); });
+  L.querySelectorAll('[data-again]').forEach(b => b.onclick = () => { const r = L._blocked[+b.dataset.again];
+    askBlock({ name: r.name, url: r.url }, null, true); });
+  L.querySelectorAll('[data-unblock]').forEach(b => b.onclick = async () => { const r = L._blocked[+b.dataset.unblock];
+    if (!await ask(`Unblock ${r.name}?`, `This takes it off your blocked list so it won't be cleaned up automatically any more. It doesn't re-subscribe or undo anything on YouTube.`, 'Unblock', true)) return;
+    api(`/api/accounts/${cur}/forget`, { keys:[keyOf(r.url, r.name)] }).then(() => { lastSig = {}; refresh(); }).catch(e => toast(e.message)); });
+}
+
+// ---------- block dialog
+function savedSteps() {
+  try { const s = JSON.parse(localStorage.getItem('steps') || 'null'); if (s && typeof s === 'object') return s; } catch (e) {}
+  return { history:true, unsubscribe:true, likes:true, dislike:true, dont_recommend:true };
+}
+function askBlock(ch, videoTitle, again) {
+  pendingBlock = ch; pendingBlock.again = !!again;
+  const k = kid(), name = ch.name || '';
+  $('bTitle').textContent = again ? `Run the clean-up again for ${name}?` : name ? `Block ${name} for ${k}?` : `Block this channel for ${k}?`;
+  $('bSub').textContent = again ? 'Useful if a step needs another try, or if they found the channel again.'
+    : (name ? '' : `We'll first find the channel that made "${videoTitle || 'this video'}". `) + `YouTube doesn't have a real block button, so this does everything it can instead:`;
+  const st = savedSteps();
+  $('bOpts').innerHTML = STEP_ORDER.map(key => {
+    const help = typeof STEP[key].help === 'function' ? STEP[key].help(k) : STEP[key].help;
+    return `<label class="opt"><input type="checkbox" data-step="${key}" ${st[key] !== false ? 'checked' : ''}>
+      <div><b>${esc(STEP[key].title(k))}</b><span>${esc(help)}</span></div></label>`;
+  }).join('');
+  const auto = acct()?.auto_cleanup !== false;
+  $('bNote').innerHTML = `Takes about 2 to 5 minutes and you can close this page while it runs.` +
+    (auto ? ` If ${esc(k)} watches this channel again later, it'll be cleaned up automatically.` : '');
+  $('bGo').textContent = again ? 'Run again' : 'Block channel';
+  const sync = () => { $('bGo').disabled = !$('bOpts').querySelector('input:checked'); };
+  $('bOpts').querySelectorAll('input').forEach(i => i.onchange = sync); sync();
+  openSheet('blockSheet');
+}
+$('bGo').onclick = async () => {
+  const steps = {}; $('bOpts').querySelectorAll('input[data-step]').forEach(i => steps[i.dataset.step] = i.checked);
+  localStorage.setItem('steps', JSON.stringify(steps));
+  const ch = pendingBlock;
+  try {
+    await api(`/api/accounts/${cur}/block`, ch.again ? { reapply:true, keys:[keyOf(ch.url, ch.name)], steps }
+      : { channels:[{ name:ch.name, url:ch.url, vid:ch.vid }], steps });
+    closeSheet('blockSheet'); toast((ch.again ? 'Started. ' : `Blocking ${ch.name || 'channel'}. `) + 'Progress is shown at the top.');
+    window.scrollTo({ top:0, behavior:'smooth' }); refresh();
+  } catch (e) { toast(e.message); }
+};
+
+// ---------- activity
+function renderActivity() {
+  const jobs = S.recent_jobs || [];
+  $('actList').innerHTML = jobs.length ? jobs.map(j => {
+    const icon = j.state === 'done' ? '<span class="ico done">✓</span>' : j.state === 'cancelled' ? '<span class="ico nothing">–</span>' : '<span class="ico failed">✕</span>';
+    const word = j.state === 'done' ? 'Finished' : j.state === 'cancelled' ? 'Stopped' : 'Something went wrong';
+    return `<div class="act"><details><summary style="color:var(--ink);font-size:15px;display:flex;gap:10px;align-items:center">${icon}<span>${esc(j.label || j.kind)}${j.auto ? ' (automatic)' : ''}<br>
+      <span class="muted" style="font-size:13px">${word} · ${when(j.finished)}</span></span></summary>
+      <pre class="log">${esc((j.lines || []).join('\n'))}</pre></details></div>`;
+  }).join('') : `<div class="muted">Nothing yet.</div>`;
+}
+
+// ---------- settings / add / remove
+function openSettings() {
+  const a = acct(); if (!a) return;
+  $('editTitle').textContent = a.name + "'s settings"; $('editName').value = a.name;
+  $('editAuto').checked = a.auto_cleanup !== false;
+  $('editAutoHelp').textContent = `If ${a.name} watches a blocked channel again, clean it up automatically within a few minutes.`;
+  $('editShorts').checked = !!a.hide_shorts;
+  $('editShortsHelp').textContent = `YouTube can't turn Shorts off, so this hides the Shorts shelf on ${a.name}'s homepage and removes Shorts from their watch history, then repeats every few hours.`;
+  const st = a.shorts_status;
+  $('editShortsStatus').textContent = a.hide_shorts && st ? `Last done ${ago(st.at)}: ${[st.shelf?.note, st.history?.note].filter(Boolean).join('. ')}.` : '';
+  openSheet('editSheet');
+}
+$('editShorts').onchange = (e) => api(`/api/accounts/${cur}/settings`, { hide_shorts: e.target.checked })
+  .then(() => { toast(e.target.checked ? 'Hiding Shorts now. This takes a minute or two.' : 'Shorts will no longer be hidden.'); refresh(); }).catch(err => toast(err.message));
+$('editAuto').onchange = (e) => api(`/api/accounts/${cur}/settings`, { auto_cleanup: e.target.checked }).then(() => { toast('Saved'); refresh(); }).catch(err => toast(err.message));
+$('editSave').onclick = async () => { await api(`/api/accounts/${cur}/rename`, { name:$('editName').value }).then(() => toast('Saved')).catch(e => toast(e.message)); refresh(); };
+$('editSignin').onclick = () => { closeSheet('editSheet'); startSignin(cur); };
+$('editRemove').onclick = async () => {
+  closeSheet('editSheet');
+  if (!await ask(`Remove ${kid()} from this website?`, `The server signs out of their YouTube and forgets their history and blocked list here. Nothing changes on YouTube itself.`, 'Remove', true)) return;
+  await api(`/api/accounts/${cur}/delete`, {}).catch(e => toast(e.message)); cur = ''; localStorage.removeItem('acct'); refresh();
+};
+$('addGo').onclick = async () => {
+  const name = $('addName').value.trim(); if (!name) return;
+  try { const r = await api('/api/accounts', { name }); cur = r.id; localStorage.setItem('acct', cur); closeSheet('addSheet'); await refresh(); startSignin(cur); }
+  catch (e) { toast(e.message); }
+};
+$('addName').onkeydown = (e) => { if (e.key === 'Enter') $('addGo').click(); };
+
+// ---------- remote sign-in
+let screenTimer = null, lastUrl = null, lastSeq = '';
+async function pullScreen() {
+  const r = await fetch('/api/login/screen?after=' + lastSeq, { cache:'no-store' });
+  if (r.status === 200) { lastSeq = r.headers.get('X-Seq') || ''; const url = URL.createObjectURL(await r.blob());
+    $('screen').src = url; if (lastUrl) URL.revokeObjectURL(lastUrl); lastUrl = url; }
+}
+function openSignin(aid) {
+  const a = S.accounts.find(x => x.id === aid); $('sTitle').textContent = 'Sign in to YouTube' + (a ? ' as ' + a.name : '');
+  lastSeq = ''; $('screen').removeAttribute('src'); openSheet('signSheet');
+  clearInterval(screenTimer); screenTimer = setInterval(() => pullScreen().catch(() => {}), 700);
+}
+function closeSignin() { closeSheet('signSheet'); clearInterval(screenTimer); }
+async function startSignin(aid) {
+  try { await api(`/api/accounts/${aid}/login`, {}); openSignin(aid); refresh(); } catch (e) { toast(e.message); }
+}
+const send = (body) => api('/api/login/input', body).then(() => setTimeout(pullScreen, 450)).catch(e => toast(e.message));
+$('screen').onclick = (e) => { const img = e.target; if (!img.naturalWidth) return;
+  send({ kind:'click', x:Math.round(e.offsetX * img.naturalWidth / img.clientWidth), y:Math.round(e.offsetY * img.naturalHeight / img.clientHeight) }); };
+const sendText = (enter) => { const t = $('sText').value; if (!t) return;
+  send({ kind:'type', text:t }).then(() => enter && send({ kind:'key', key:'Enter' })); $('sText').value = ''; };
+$('sSendEnter').onclick = () => sendText(true);
+$('sSendOnly').onclick = () => sendText(false);
+$('sText').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); sendText(true); } };
+$('sShow').onchange = (e) => $('sText').type = e.target.checked ? 'text' : 'password';
+document.querySelectorAll('#signSheet [data-key]').forEach(b => b.onclick = () => send({ kind:'key', key:b.dataset.key }));
+$('sUp').onclick = () => send({ kind:'scroll', dy:-500 });
+$('sDown').onclick = () => send({ kind:'scroll', dy:500 });
+$('sBack').onclick = () => send({ kind:'back' });
+$('sDone').onclick = () => { send({ kind:'done' }); closeSignin(); toast('Checking the sign-in…'); };
+
+// ---------- search
+$('q').oninput = () => { query = $('q').value; showN = 50; renderList(); };
+
+// ---------- refresh loop
+function render() { renderTabs(); renderKidHead(); renderTasks(); renderViews(); renderList(); }
+
+async function refresh() {
+  let s;
+  try { s = await api('/api/state' + (cur ? '?account=' + encodeURIComponent(cur) : '')); }
+  catch (e) { if (e instanceof SignedOut) { showGate(); return; } throw e; }
+  const prevActive = new Set((S.active_jobs || []).map(j => j.id));
+  S = { ...S, ...s, feed: s.feed || [], blocked: s.blocked || [], subs: s.subs || { items:[] }, home: s.home || { items:[] } };
+  if (!S.accounts.some(a => a.id === cur)) { const nxt = S.accounts[0]?.id || ''; if (nxt !== cur) { cur = nxt; if (cur) { localStorage.setItem('acct', cur); return refresh(); } } }
+  $('logoutBtn').classList.toggle('hidden', s.auth !== 'password');
+  if (s.login.active && !$('signSheet').classList.contains('open')) openSignin(s.login.account);
+  if (!s.login.active && $('signSheet').classList.contains('open') && !S.active_jobs.some(j => j.kind === 'login')) closeSignin();
+  for (const j of S.recent_jobs || []) {
+    if (seenJobs.has(j.id)) continue;
+    seenJobs.add(j.id);
+    if (firstLoad || !prevActive.has(j.id) || j.kind === 'poll' || j.kind === 'snapshot') continue;
+    if (j.kind === 'shorts') toast(j.state === 'done' ? `Finished hiding Shorts for ${kid()}. Settings shows what was done.` : j.state === 'cancelled' ? 'Stopped hiding Shorts.' : 'Something went wrong hiding Shorts. See Recent activity.');
+    else if (j.kind === 'block') toast(j.state === 'done' ? `✓ ${j.label}: finished.${j.label.startsWith('Unsubscribing') ? '' : ' See the Blocked tab for details.'}`
+      : j.state === 'cancelled' ? `Stopped: ${j.label}` : `Something went wrong: ${j.label}. See Recent activity.`);
+    else if (j.state === 'failed') toast(`Something went wrong: ${j.label || j.kind}`);
+  }
+  firstLoad = false;
+  render();
+  if (!refresh._snapped && acct()) { refresh._snapped = true; maybeSnapshot(); }
+}
+function start() {
+  $('app').classList.remove('hidden');
+  refresh().catch(e => { $('kidHead').innerHTML = `<div class="card empty">${esc(e.message)}</div>`; });
+  clearInterval(timer); timer = setInterval(() => refresh().catch(() => {}), 3000);
+}
+start();
+</script>
+</body>
+</html>

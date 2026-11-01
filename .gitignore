@@ -1,0 +1,13 @@
+yt-profile/
+yt-profile-manual/
+.env
+.venv/
+__pycache__/
+channels.json
+blocked.json
+block-log.jsonl
+data/
+blocklist.txt
+*.log
+.cloudflared/
+cookies*.json

@@ -1,0 +1,4 @@
+playwright>=1.47
+flask>=3.0
+waitress>=3.0
+pyjwt[crypto]>=2.8

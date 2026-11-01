@@ -1,0 +1,20 @@
+[Unit]
+Description=YouTube channel filter web app
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ytfilter
+Group=ytfilter
+WorkingDirectory=/opt/yt-filter
+# Chrome needs a screen; xvfb-run gives it a virtual one.
+ExecStart=/usr/bin/xvfb-run -a -s "-screen 0 1280x900x24" /opt/yt-filter/.venv/bin/python webapp.py
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
