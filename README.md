@@ -109,6 +109,10 @@ deploy/                 installer, systemd units, auto-update, Cloudflare Tunnel
 WEBSITE.md              full server setup guide
 ```
 
+## License
+
+Released under the [MIT License](LICENSE).
+
 ## Disclaimer
 
 This project isn't affiliated with or endorsed by YouTube or Google. YouTube is a trademark of Google LLC.
