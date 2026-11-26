@@ -52,6 +52,7 @@ from types import SimpleNamespace
 
 from flask import Flask, abort, g, jsonify, make_response, request, send_file
 
+import keywords as kwm
 import yt_channel_filter as ytf
 
 HERE = Path(__file__).resolve().parent
@@ -368,7 +369,8 @@ def find_row(rows: list[dict], ch: ytf.Channel) -> dict | None:
                  or same_channel(b.get("url"), b.get("name"), ch)), None)
 
 
-def save_block_result(aid: str, ch: ytf.Channel, steps: dict, results: dict, auto: bool, create: bool = True):
+def save_block_result(aid: str, ch: ytf.Channel, steps: dict, results: dict, auto: bool, create: bool = True,
+                      reason: dict | None = None):
     """Record a channel as blocked, with what each step achieved. With
     create=False (automatic and "run again" clean-ups) a channel that was
     unblocked in the meantime is left off the list."""
@@ -390,8 +392,10 @@ def save_block_result(aid: str, ch: ytf.Channel, steps: dict, results: dict, aut
         row.setdefault("steps", {})
         for k, v in results.items():
             row["steps"][k] = {**v, "at": now}
-        if auto:
+        if auto and not reason:
             row["auto_runs"] = row.get("auto_runs", 0) + 1
+        if reason and not row.get("reason"):
+            row["reason"] = reason  # why a keyword rule blocked it, shown on the Blocked tab
         write_json(adir(aid) / "blocked.json", rows)
 
 
@@ -557,9 +561,13 @@ def poller():
                 if since > SHORTS_EVERY or (a.get("shorts_pending") and since > SHORTS_SOON):
                     submit("shorts", a["id"], {"label": "Hiding Shorts"}, quiet=True)
                     continue
-            if now - (a.get("last_poll") or 0) < interval:
-                continue
-            submit("poll", a["id"], {"label": "Checking history"}, quiet=True)
+            if now - (a.get("last_poll") or 0) >= interval:
+                submit("poll", a["id"], {"label": "Checking history"}, quiet=True)
+            elif a.get("keywords") and a.get("signed_in") and now - (a.get("kwscan_at") or 0) > KWSCAN_GAP:
+                if channels_to_check(a["id"], a["keywords"]):
+                    submit("kwscan", a["id"], {"label": "Checking channels for blocked words"}, quiet=True)
+                else:
+                    update_account(a["id"], kwscan_at=now)  # nothing to do; look again in a minute
 
 
 # --------------------------------------------------------------------------
@@ -661,6 +669,176 @@ def protect(aid: str, new_items: list[dict]):
                           "label": f"Cleaning up {names} again"})
 
 
+# ---- Blocked words. Each kid can have a list of keywords (like "gta6"). A
+# channel is blocked automatically when a video of it in their history, its
+# name, its description or one of its newest video titles mentions one.
+# data/<id>/kwcheck.json remembers, per channel, when it was last checked and
+# whether a parent unblocked it (then keywords leave it alone).
+
+KWSCAN_GAP = 60             # look for unchecked channels at most once a minute
+KWSCAN_BATCH = 6            # channel pages read per check (each takes a few seconds)
+KW_RECHECK = 14 * 86400     # read a channel's page again after two weeks
+KW_REQUEUE = 3600           # don't queue the same channel for blocking more than once an hour
+
+
+def kwcheck(aid: str) -> dict:
+    with store_lock:
+        return read_json(adir(aid) / "kwcheck.json", {})
+
+
+def save_kwcheck(aid: str, data: dict):
+    with store_lock:
+        write_json(adir(aid) / "kwcheck.json", data)
+
+
+def kw_allowed(aid: str, ch: ytf.Channel) -> bool:
+    return bool(kwcheck(aid).get(ch.key, {}).get("allowed"))
+
+
+def kw_where(where: str, text: str) -> str:
+    return {"title": f'a video they watched: "{text}"',
+            "channel": "the channel's name",
+            "description": "the channel's description",
+            "upload": f'one of its videos: "{text}"'}.get(where, where)
+
+
+def is_blocked(rows: list[dict], url: str | None, name: str | None, vid: str | None = None) -> bool:
+    return any(same_channel(url, name, row_channel(b), vid) for b in rows)
+
+
+def keyword_titles(aid: str):
+    """Quick check of everything in the saved history (titles and channel
+    names) against the kid's keywords; queues a block for any match."""
+    kws = get_account(aid).get("keywords") or []
+    if not kws:
+        return
+    rows, check, hits, seen = blocked(aid), kwcheck(aid), [], set()
+    for f in feed(aid):
+        key = ytf.channel_key(f.get("url"), f.get("channel")) if (f.get("url") or f.get("channel")) else "vid:" + f["vid"]
+        if key in seen or check.get(key, {}).get("allowed"):
+            continue
+        if is_blocked(rows, f.get("url"), f.get("channel"), f.get("vid")):
+            continue
+        kw, where, text = kwm.find(kws, f.get("title") or ""), "title", f.get("title") or ""
+        if not kw:
+            kw, where, text = kwm.find(kws, f.get("channel") or ""), "channel", f.get("channel") or ""
+        if kw:
+            seen.add(key)
+            hits.append({"key": key, "name": f.get("channel") or "", "url": f.get("url") or "", "vid": f["vid"],
+                         "reason": {"keyword": kw, "where": where, "text": text[:200], "at": time.time()}})
+    keyword_block(aid, hits)
+
+
+def channels_to_check(aid: str, kws: list[str]) -> list[dict]:
+    """Channels in the history whose page hasn't been checked against the
+    current keywords yet (or not for two weeks), newest first."""
+    if not kws:
+        return []
+    sig, now = kwm.signature(kws), time.time()
+    rows, check, out, seen = blocked(aid), kwcheck(aid), [], set()
+    for f in sorted(feed(aid), key=lambda x: -(x.get("seen") or 0)):
+        if not f.get("url"):
+            continue  # Shorts without a channel link; their titles are still checked
+        key = ytf.channel_key(f["url"], f.get("channel"))
+        if key in seen:
+            continue
+        seen.add(key)
+        e = check.get(key, {})
+        if e.get("allowed") or now - (e.get("queued_at") or 0) < KW_REQUEUE:
+            continue
+        if e.get("sig") == sig and now - (e.get("at") or 0) < (86400 if e.get("error") else KW_RECHECK):
+            continue
+        if is_blocked(rows, f["url"], f.get("channel")):
+            continue
+        out.append({"key": key, "name": f.get("channel") or f["url"].strip("/"), "url": f["url"]})
+    return out
+
+
+def keyword_block(aid: str, hits: list[dict]):
+    """Queue one block job for the channels a keyword matched."""
+    if not hits:
+        return
+    now = time.time()
+    with store_lock:
+        check = kwcheck(aid)
+        fresh = []
+        for h in hits:
+            e = check.setdefault(h["key"], {})
+            if e.get("allowed") or now - (e.get("queued_at") or 0) < KW_REQUEUE:
+                continue
+            e.update(queued_at=now, hit=h["reason"], name=h["name"] or e.get("name"))
+            fresh.append(h)
+        save_kwcheck(aid, check)
+    if not fresh:
+        return
+    for h in fresh:
+        print(f'Blocked word "{h["reason"]["keyword"]}" found in {kw_where(h["reason"]["where"], h["reason"]["text"])}'
+              f' ({h["name"] or "a Short"}). Blocking the channel.')
+    names = ", ".join(h["name"] or "the channel of a Short" for h in fresh[:3]) + ("..." if len(fresh) > 3 else "")
+    words = ", ".join(sorted({f'"{h["reason"]["keyword"]}"' for h in fresh}))
+    submit("block", aid, {
+        "channels": [{"name": h["name"], "url": h["url"], "vid": h["vid"] if not h["url"] else "", "reason": h["reason"]}
+                     for h in fresh],
+        "steps": AUTO_STEPS, "auto": True, "keyword": True,
+        "label": f"Blocking {names} automatically (mentions {words})",
+    })
+
+
+def run_kwscan(page, aid, params, job):
+    """Read a few channel pages and check them against the kid's keywords."""
+    update_account(aid, kwscan_at=time.time())
+    kws = get_account(aid).get("keywords") or []
+    todo = channels_to_check(aid, kws)[:KWSCAN_BATCH]
+    sig, hits = kwm.signature(kws), []
+    for c in todo:
+        job.check_cancel()
+        job.progress = {"phase": f"Checking {c['name']}"}
+        ch = ytf.Channel(name=c["name"], url=c["url"])
+        try:
+            info = ytf.channel_about(page, ch)
+            err = None if info else "channel page not found"
+        except ytf.Cancelled:
+            raise
+        except Exception as e:
+            info, err = None, ytf.describe_error(e)
+        hit = None
+        if info:
+            for where, texts in (("channel", [info["name"]]), ("description", [info["description"]]),
+                                 ("upload", info["titles"])):
+                for t in texts:
+                    kw = kwm.find(kws, t)
+                    if kw:
+                        hit = {"keyword": kw, "where": where, "text": t[:200] if where == "upload" else "",
+                               "at": time.time()}
+                        break
+                if hit:
+                    break
+        with store_lock:
+            check = kwcheck(aid)
+            e = check.setdefault(c["key"], {})
+            e.update(at=time.time(), sig=sig, name=c["name"], error=err)
+            save_kwcheck(aid, check)
+        print(f"{c['name']}: " + (f"couldn't check ({err})" if err else
+                                   f'mentions "{hit["keyword"]}" in {kw_where(hit["where"], hit["text"])}' if hit
+                                   else f"OK ({len(info['titles'])} video titles checked)"))
+        if hit:
+            hits.append({"key": c["key"], "name": c["name"], "url": c["url"], "vid": "", "reason": hit})
+    keyword_block(aid, hits)
+
+
+def keyword_status(aid: str, kws: list[str]) -> dict:
+    """For Settings: how many history channels have been checked so far."""
+    sig, check, rows, keys = kwm.signature(kws), kwcheck(aid), blocked(aid), {}
+    for f in feed(aid):
+        if f.get("url"):
+            keys[ytf.channel_key(f["url"], f.get("channel"))] = f
+    done = sum(1 for k, f in keys.items() if check.get(k, {}).get("sig") == sig or check.get(k, {}).get("allowed")
+               or is_blocked(rows, f["url"], f.get("channel")))
+    blocked_n = sum(1 for b in rows if b.get("reason"))
+    return {"channels": len(keys), "checked": done, "blocked": blocked_n,
+            "examples": {k: kwm.examples(k) for k in kws}}
+
+
 def run_poll(page, aid, params, job):
     deep = bool(params.get("deep"))
     items = read_history(page, 300 if deep else 40)
@@ -683,6 +861,7 @@ def run_poll(page, aid, params, job):
             write_json(adir(aid) / "feed.json", f)
     new = [it for it in new if it["vid"] not in old]
     protect(aid, new)  # also retries clean-ups that had to wait
+    keyword_titles(aid)
     if get_account(aid).get("hide_shorts") and any(it.get("short") for it in new):
         print("New Shorts in the history; they'll be removed shortly.")
         update_account(aid, shorts_pending=True)  # the poller runs it once the 30-minute gap allows
@@ -713,15 +892,19 @@ def run_block(page, aid, params, job):
     steps = {k: bool(params.get("steps", {}).get(k)) for k in ytf.STEPS}
     record = params.get("record", True)
     auto = bool(params.get("auto"))
-    existing_only = auto or bool(params.get("reapply"))  # never re-add a channel that was unblocked
+    keyword = bool(params.get("keyword"))  # a keyword rule found a new channel to block
+    # never re-add a channel that was unblocked
+    existing_only = (auto and not keyword) or bool(params.get("reapply"))
     job.progress = {"phase": "Getting ready", "channels": [], "current": None,
                     "steps": [k for k in ytf.STEPS if steps[k]]}
 
     known = feed(aid)
     picked: list[ytf.Channel] = []
+    reasons: dict[str, dict] = {}
     for c in params["channels"]:
         job.check_cancel()
         ch = ytf.Channel(name=c.get("name") or "", url=c.get("url") or "", videos=[v for v in [c.get("vid")] if v])
+        ch_reason = c.get("reason") if keyword else None
         if not ch.url and ch.videos:
             job.progress["phase"] = "Finding which channel made that video"
             print(f"Looking up the channel of video {ch.videos[0]}...")
@@ -729,6 +912,11 @@ def run_block(page, aid, params, job):
             if not ch.url:
                 print("  could not find the channel for that video; skipping")
                 continue
+        if keyword and (kw_allowed(aid, ch) or find_row(blocked(aid), ch)):
+            print(f"{ch.name or 'That channel'} was unblocked by a parent (or is already blocked), so it's skipped.")
+            continue
+        if ch_reason:
+            reasons[ch.key] = ch_reason
         for f in known:  # every video from this channel we've seen in their history
             if f["vid"] not in ch.videos and same_channel(f.get("url"), f.get("channel"), ch):
                 ch.videos.append(f["vid"])
@@ -738,6 +926,9 @@ def run_block(page, aid, params, job):
                 ch.videos.append(v)
         picked.append(ch)
     if not picked:
+        if keyword:
+            print("Nothing left to block.")
+            return
         raise RuntimeError("Couldn't work out which channel that is.")
     job.progress["channels"] = [{"name": c.name, "url": c.url,
                                  "steps": {k: {"state": "waiting"} for k in ytf.STEPS if steps[k]}} for c in picked]
@@ -773,14 +964,15 @@ def run_block(page, aid, params, job):
         except ytf.Cancelled as e:
             # keep what was already done, so it shows on the Blocked tab and can be run again
             if record and not dry and getattr(e, "results", None):
-                save_block_result(aid, ch, steps, e.results, auto, create=not existing_only)
+                save_block_result(aid, ch, steps, e.results, auto, create=not existing_only,
+                                  reason=reasons.get(ch.key))
             raise
         ytf.log({"channel": ch.name, "url": ch.url, "dry_run": dry, "via": "auto" if auto else "web",
                  "steps": results})
         if dry:
             continue
         if record:
-            save_block_result(aid, ch, steps, results, auto, create=not existing_only)
+            save_block_result(aid, ch, steps, results, auto, create=not existing_only, reason=reasons.get(ch.key))
         with store_lock:
             f = feed(aid)
             for x in f:  # fill in channel details on Shorts we just looked up
@@ -911,7 +1103,7 @@ def run_login(page, aid, params, job):
 
 
 RUNNERS = {"poll": run_poll, "check": run_check, "block": run_block, "login": run_login, "snapshot": run_snapshot,
-           "shorts": run_shorts}
+           "shorts": run_shorts, "kwscan": run_kwscan}
 
 
 # --------------------------------------------------------------------------
@@ -947,6 +1139,8 @@ def state():
         out["blocked"] = blocked(aid)
         out["subs"] = snapshot(aid, "subs")
         out["home"] = snapshot(aid, "home")
+        kws = next(a for a in accts if a["id"] == aid).get("keywords") or []
+        out["keywords"] = keyword_status(aid, kws) if kws else None
     return jsonify(out)
 
 
@@ -982,6 +1176,19 @@ def account_settings(aid):
     body = request.get_json() or {}
     if "auto_cleanup" in body:
         update_account(aid, auto_cleanup=bool(body["auto_cleanup"]))
+    if "keywords" in body:
+        if not isinstance(body["keywords"], list):
+            abort(400)
+        kws, sigs = [], set()
+        for k in body["keywords"][:kwm.MAX_KEYWORDS]:
+            k = kwm.clean_keyword(k)
+            sig = " ".join(kwm.tokens(k))
+            if sig and sig not in sigs:  # "GTA 6" and "gta6" are the same rule
+                sigs.add(sig)
+                kws.append(k)
+        update_account(aid, keywords=kws, kwscan_at=0)
+        if kws:
+            keyword_titles(aid)  # titles already in the history are checked straight away
     if "hide_shorts" in body:
         on = bool(body["hide_shorts"])
         update_account(aid, hide_shorts=on)
@@ -1095,8 +1302,16 @@ def forget_blocked(aid):
     get_account(aid)
     keys = set((request.get_json() or {}).get("keys") or [])
     with store_lock:
+        rows = blocked(aid)
         write_json(adir(aid) / "blocked.json",
-                   [b for b in blocked(aid) if ytf.channel_key(b.get("url"), b.get("name")) not in keys])
+                   [b for b in rows if ytf.channel_key(b.get("url"), b.get("name")) not in keys])
+        # A parent unblocked it, so blocked words must not block it again.
+        check = kwcheck(aid)
+        for b in rows:
+            k = ytf.channel_key(b.get("url"), b.get("name"))
+            if k in keys:
+                check.setdefault(k, {}).update(allowed=True, name=b.get("name"))
+        save_kwcheck(aid, check)
     return jsonify(ok=True)
 
 

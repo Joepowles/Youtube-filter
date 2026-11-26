@@ -30,7 +30,7 @@ fi
 echo "== App files"
 id ytfilter >/dev/null 2>&1 || useradd --system --create-home --home-dir /var/lib/ytfilter --shell /bin/bash ytfilter
 mkdir -p "$APP/static"
-install -m 0644 "$SRC/yt_channel_filter.py" "$SRC/webapp.py" "$SRC/requirements.txt" "$APP/"
+install -m 0644 "$SRC/yt_channel_filter.py" "$SRC/keywords.py" "$SRC/webapp.py" "$SRC/requirements.txt" "$APP/"
 install -m 0644 "$SRC/static/index.html" "$APP/static/"
 install -m 0755 "$SRC/deploy/login.sh" "$APP/"
 NEW_ENV=0

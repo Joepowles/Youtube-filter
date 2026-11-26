@@ -15,6 +15,7 @@ YouTube has no real "block this channel" button for regular accounts. **YouTube 
   4. Gives a thumbs down to the channel's newest videos (30 by default)
   5. Marks "Don't recommend channel"
 - **Stays blocked.** The site checks each child's history every couple of minutes. If a blocked channel shows up again, it reruns the clean-up on its own.
+- **Block by keyword (optional).** Add words like `gta6` in a child's Settings. Any channel in their history whose video titles, name, description or newest uploads mention one is blocked automatically, with the reason shown on the Blocked tab. Spelling variants are caught too ("GTA 6", "GTA VI", "Grand Theft Auto 6"). Unblocking a channel stops keywords from blocking it again.
 - **Several children.** Each child gets a separate tab with their own browser profile and Google sign-in.
 - **See what they watch.** Each child has Watched, Channels, Subscriptions, Suggested (their current homepage) and Blocked tabs.
 - **Hide Shorts (optional).** Hides the Shorts shelf on the homepage and clears watched Shorts from history, then repeats every 6 hours.

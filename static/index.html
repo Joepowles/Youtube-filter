@@ -155,6 +155,16 @@
   .gate button { width:100%; margin-top:12px; }
   .err { color:var(--red); font-size:14px; min-height:20px; margin-top:8px; }
 
+  .kwbox { display:block; cursor:default; }
+  .kwbox > b { font-weight:600; display:block; }
+  .chips { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+  .chip { display:flex; gap:10px; align-items:flex-start; justify-content:space-between; background:var(--soft); border-radius:12px; padding:8px 8px 8px 12px; }
+  .chip b { font-weight:600; display:block; word-break:break-word; }
+  .chip .muted { font-size:13px; display:block; }
+  .chip button { flex:none; padding:4px 10px; font-size:14px; border-radius:10px; }
+  .kwadd { display:flex; gap:8px; margin-top:10px; }
+  .kwadd input { flex:1; min-width:0; width:auto; height:auto; margin:0; accent-color:auto; }
+  .why { margin-top:10px; padding:10px 12px; background:var(--soft); border-radius:10px; font-size:14px; }
   .toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:var(--ink); color:var(--bg); padding:12px 18px; border-radius:14px; font-size:15px; z-index:30; opacity:0; transition:opacity .2s; pointer-events:none; max-width:90vw; text-align:center; }
   .toast.show { opacity:1; }
 </style>
@@ -217,6 +227,12 @@
     <div><b>Keep blocked channels cleaned up</b><span id="editAutoHelp"></span></div></label>
   <label class="opt"><input type="checkbox" id="editShorts">
     <div><b>Hide Shorts</b><span id="editShortsHelp"></span><span id="editShortsStatus" style="display:block;margin-top:6px"></span></div></label>
+  <div class="opt kwbox" id="kwBox">
+    <b>Block channels by keyword</b><span id="kwHelp"></span>
+    <div class="chips" id="kwList"></div>
+    <div class="kwadd"><input type="text" id="kwInput" maxlength="60" placeholder="Add a word, e.g. gta6" aria-label="Word to block"><button id="kwAdd">Add</button></div>
+    <span id="kwStatus" style="display:block;margin-top:8px"></span>
+  </div>
   <div class="row"><button id="editSignin">Sign in to YouTube again</button></div>
   <div class="row"><button class="danger" id="editRemove">Remove from this website</button></div>
   <div class="row"><button data-close>Close</button></div>
@@ -261,6 +277,7 @@
   <p><b>Good to know</b></p>
   <ul class="how">
     <li><b>Shorts:</b> YouTube has no switch to turn Shorts off. "Hide Shorts" (in each child's Settings) hides the Shorts shelf on their homepage and removes Shorts from their watch history so YouTube suggests fewer of them. YouTube brings the shelf back after about 30 days, so the website hides it again every few hours. Shorts can still be reached through the Shorts button or by searching.</li>
+    <li><b>Block channels by keyword:</b> in each child's Settings you can add words like <i>gta6</i>. Any channel in their watch history whose video titles, name or description mention one is blocked automatically, and the Blocked tab says which word caught it. It also catches other spellings, like "GTA 6", "GTA VI" or "Grand Theft Auto 6". If it blocks the wrong channel, tap <b>Unblock</b> and that channel is left alone from then on.</li>
     <li>Your child can still find the channel by searching for it. If that happens and "Keep blocked channels cleaned up" is on (in each child's Settings), the website notices within a few minutes and cleans up again.</li>
     <li>If a step shows a warning, tap <b>Run again</b> later. YouTube sometimes doesn't show the button the website needs.</li>
     <li>For a child under 13 with a Google Family Link account, you can also block a channel outright in the Family Link app. That is stronger, and this website handles everything Family Link doesn't.</li>
@@ -601,6 +618,12 @@ function emptyMsg(a, text) {
   return `<div class="card empty"><span class="spin"></span><p>${text}</p></div>`;
 }
 
+const WHERE = {
+  title: t => `a video ${kid()} watched ("${t}")`,
+  channel: () => "the channel's name",
+  description: () => "the channel's description",
+  upload: t => `one of its videos ("${t}")`,
+};
 function blockedCard(b, i) {
   const steps = b.steps || {};
   const lines = STEP_ORDER.filter(k => steps[k]).map(k => {
@@ -609,13 +632,15 @@ function blockedCard(b, i) {
   }).join('');
   const warn = STEP_ORDER.some(k => steps[k] && (steps[k].state === 'partial' || steps[k].state === 'failed'));
   const since = b.last_run ? `Last cleaned up ${ago(b.last_run)}` : '';
+  const r = b.reason;
+  const why = r ? `<div class="why">Blocked automatically because ${esc(WHERE[r.where] ? WHERE[r.where](r.text) : 'it')} mentions <b>"${esc(r.keyword)}"</b>.</div>` : '';
   const again = b.seen_again_at ? `<div class="again">${esc(kid())} watched this channel again ${ago(b.seen_again_at)}.${b.auto_runs ? ' It was cleaned up automatically.' : ''}</div>` : '';
   return `<div class="card bcard"><div class="top">
       <div class="avatar">${initial(b.name)}</div>
       <div style="min-width:0;flex:1"><h3>${esc(b.name)}</h3><div class="meta" style="white-space:normal">Blocked ${esc(b.blocked_ts ? when(b.blocked_ts) : (b.blocked_at || ''))}${since ? ' · ' + since : ''}</div></div>
-      ${warn ? '<span class="pill" style="background:var(--amber-soft);color:var(--amber)">Needs another try</span>' : ''}</div>
+      ${warn ? '<span class="pill" style="background:var(--amber-soft);color:var(--amber)">Needs another try</span>' : r ? '<span class="pill">Blocked word</span>' : ''}</div>
     ${lines ? `<ul class="steps">${lines}</ul>` : '<p class="muted" style="font-size:14px">Blocked with an older version of this website. Tap Run again to see the details.</p>'}
-    ${again}
+    ${why}${again}
     <div class="go"><button class="small" data-again="${i}" ${busy('block') ? 'disabled' : ''}>Run again</button>
       <a class="small link" href="https://www.youtube.com${esc(b.url)}" target="_blank" rel="noopener noreferrer" style="align-self:center;margin:0 8px;text-decoration:none">Open on YouTube</a>
       <button class="small link" style="margin-left:auto;color:var(--mute)" data-unblock="${i}">Unblock</button></div>
@@ -644,7 +669,7 @@ function wireList() {
   L.querySelectorAll('[data-again]').forEach(b => b.onclick = () => { const r = L._blocked[+b.dataset.again];
     askBlock({ name: r.name, url: r.url }, null, true); });
   L.querySelectorAll('[data-unblock]').forEach(b => b.onclick = async () => { const r = L._blocked[+b.dataset.unblock];
-    if (!await ask(`Unblock ${r.name}?`, `This takes it off your blocked list so it won't be cleaned up automatically any more. It doesn't re-subscribe or undo anything on YouTube.`, 'Unblock', true)) return;
+    if (!await ask(`Unblock ${r.name}?`, `This takes it off your blocked list so it won't be cleaned up automatically any more` + (acct()?.keywords?.length ? `, and your blocked words won't block it again` : '') + `. It doesn't re-subscribe or undo anything on YouTube.`, 'Unblock', true)) return;
     api(`/api/accounts/${cur}/forget`, { keys:[keyOf(r.url, r.name)] }).then(() => { lastSig = {}; refresh(); }).catch(e => toast(e.message)); });
 }
 
@@ -705,10 +730,42 @@ function openSettings() {
   $('editAutoHelp').textContent = `If ${a.name} watches a blocked channel again, clean it up automatically within a few minutes.`;
   $('editShorts').checked = !!a.hide_shorts;
   $('editShortsHelp').textContent = `YouTube can't turn Shorts off, so this hides the Shorts shelf on ${a.name}'s homepage and removes Shorts from their watch history, then repeats every few hours.`;
+  renderKeywords();
   const st = a.shorts_status;
   $('editShortsStatus').textContent = a.hide_shorts && st ? `Last done ${ago(st.at)}: ${[st.shelf?.note, st.history?.note].filter(Boolean).join('. ')}.` : '';
   openSheet('editSheet');
 }
+function renderKeywords() {
+  const a = acct(); if (!a) return;
+  const kws = a.keywords || [], info = S.keywords || {};
+  $('kwHelp').textContent = `If a channel in ${a.name}'s watch history mentions one of these words in its video titles, name or description, it's blocked automatically. Other spellings are caught too.`;
+  $('kwList').innerHTML = kws.map((k, i) => {
+    const ex = ((info.examples || {})[k] || []).filter(e => e.toLowerCase().replace(/\s+/g, '') !== k.toLowerCase().replace(/\s+/g, ''));
+    return `<div class="chip"><div style="min-width:0"><b>${esc(k)}</b>${ex.length ? `<span class="muted">Also catches: ${esc(ex.slice(0, 4).join(', '))}</span>` : ''}</div>
+      <button data-kwdel="${i}" aria-label="Remove ${esc(k)}">Remove</button></div>`;
+  }).join('');
+  $('kwList').querySelectorAll('[data-kwdel]').forEach(b => b.onclick = () => saveKeywords(kws.filter((_, j) => j !== +b.dataset.kwdel), 'Removed. Channels already blocked stay blocked.'));
+  let status = '';
+  if (kws.length && info.channels !== undefined) {
+    status = info.checked < info.channels ? `Checking the channels in ${a.name}'s history: ${info.checked} of ${info.channels} done.`
+      : `All ${plural(info.channels, 'channel')} in ${a.name}'s history checked.`;
+    if (info.blocked) status += ` ${plural(info.blocked, 'channel')} blocked by these words so far (see the Blocked tab).`;
+  }
+  $('kwStatus').textContent = status;
+}
+async function saveKeywords(list, msg) {
+  try { await api(`/api/accounts/${cur}/settings`, { keywords: list }); toast(msg); await refresh(); renderKeywords(); }
+  catch (e) { toast(e.message); }
+}
+$('kwAdd').onclick = async () => {
+  const k = $('kwInput').value.trim(); if (!k) return;
+  const kws = acct()?.keywords || [];
+  if (kws.some(x => x.toLowerCase().replace(/[^a-z0-9]/g, '') === k.toLowerCase().replace(/[^a-z0-9]/g, ''))) { toast('That word is already on the list.'); return; }
+  if (!await ask(`Block channels that mention "${k}"?`, `Any channel in ${kid()}'s watch history that mentions "${k}" will be blocked for ${kid()} automatically, including ones they've already watched. You can unblock a channel from the Blocked tab if it gets one wrong.`, 'Block them')) return;
+  $('kwInput').value = '';
+  saveKeywords([...kws, k], `Added "${k}". Checking ${kid()}'s history now.`);
+};
+$('kwInput').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); $('kwAdd').click(); } };
 $('editShorts').onchange = (e) => api(`/api/accounts/${cur}/settings`, { hide_shorts: e.target.checked })
   .then(() => { toast(e.target.checked ? 'Hiding Shorts now. This takes a minute or two.' : 'Shorts will no longer be hidden.'); refresh(); }).catch(err => toast(err.message));
 $('editAuto').onchange = (e) => api(`/api/accounts/${cur}/settings`, { auto_cleanup: e.target.checked }).then(() => { toast('Saved'); refresh(); }).catch(err => toast(err.message));
@@ -761,14 +818,15 @@ $('sDone').onclick = () => { send({ kind:'done' }); closeSignin(); toast('Checki
 $('q').oninput = () => { query = $('q').value; showN = 50; renderList(); };
 
 // ---------- refresh loop
-function render() { renderTabs(); renderKidHead(); renderTasks(); renderViews(); renderList(); }
+function render() { renderTabs(); renderKidHead(); renderTasks(); renderViews(); renderList();
+  if ($('editSheet').classList.contains('open') && document.activeElement !== $('kwInput')) renderKeywords(); }
 
 async function refresh() {
   let s;
   try { s = await api('/api/state' + (cur ? '?account=' + encodeURIComponent(cur) : '')); }
   catch (e) { if (e instanceof SignedOut) { showGate(); return; } throw e; }
   const prevActive = new Set((S.active_jobs || []).map(j => j.id));
-  S = { ...S, ...s, feed: s.feed || [], blocked: s.blocked || [], subs: s.subs || { items:[] }, home: s.home || { items:[] } };
+  S = { ...S, ...s, keywords: s.keywords || null, feed: s.feed || [], blocked: s.blocked || [], subs: s.subs || { items:[] }, home: s.home || { items:[] } };
   if (!S.accounts.some(a => a.id === cur)) { const nxt = S.accounts[0]?.id || ''; if (nxt !== cur) { cur = nxt; if (cur) { localStorage.setItem('acct', cur); return refresh(); } } }
   $('logoutBtn').classList.toggle('hidden', s.auth !== 'password');
   if (s.login.active && !$('signSheet').classList.contains('open')) openSignin(s.login.account);

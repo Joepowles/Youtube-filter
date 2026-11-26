@@ -605,6 +605,48 @@ def channel_recent_videos(page: Page, ch: Channel, limit: int) -> list[str]:
     return out[:limit]
 
 
+CHANNEL_ABOUT_JS = r"""
+() => {
+  const meta = (sel) => { const m = document.querySelector(sel); return m ? (m.getAttribute('content') || '') : ''; };
+  const text = (sel) => { const e = document.querySelector(sel); return e ? (e.textContent || '').trim() : ''; };
+  return {
+    name: meta('meta[property="og:title"]') || text('#channel-name #text, yt-dynamic-text-view-model h1, #page-header h1'),
+    description: meta('meta[name="description"]') || meta('meta[property="og:description"]')
+      || text('yt-description-preview-view-model, #description-container, #page-header-banner + * #description'),
+  };
+}
+"""
+
+
+def channel_about(page: Page, ch: Channel, limit: int = 30) -> dict | None:
+    """The channel's name, description and the titles of its newest videos
+    (and Shorts, when it has few videos), for keyword checks. None when the
+    channel page can't be found."""
+    url = find_channel_url(page, ch)
+    if not url:
+        return None
+    base = url.rstrip("/")
+    goto(page, base + "/videos")
+    info = page.evaluate(CHANNEL_ABOUT_JS)
+    titles: list[str] = []
+
+    def grab():
+        for it in extract_items(page):
+            t = (it.get("title") or "").strip()
+            if t and t not in titles:
+                titles.append(t[:200])
+
+    scroll_until_stable(page, VIDEO_ITEMS, limit, max_rounds=3)
+    grab()
+    if len(titles) < 5:
+        goto(page, base + "/shorts")
+        scroll_until_stable(page, VIDEO_ITEMS, limit, max_rounds=2)
+        grab()
+    return {"name": (info.get("name") or ch.name or "")[:200],
+            "description": (info.get("description") or "")[:2000],
+            "titles": titles[:limit * 2]}
+
+
 def dislike_video(page: Page, vid: str, dry: bool) -> str:
     goto(page, f"{YT}/watch?v={vid}")
     page.keyboard.press("k")

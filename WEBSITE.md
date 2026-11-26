@@ -125,6 +125,13 @@ A card at the top shows each step as it happens, with a **Stop** button. Steps t
 
 **Hide Shorts** (off by default, in each child's **Settings**): YouTube has no setting to turn Shorts off, so this clicks "Not interested" on the Shorts shelf on their homepage and removes watched Shorts from their history. YouTube brings the shelf back after about 30 days, so it repeats every 6 hours, and sooner when new Shorts show up in the history. Shorts are still reachable from the Shorts button or search.
 
+**Block channels by keyword** (empty by default, in each child's **Settings**): add words or phrases such as `gta6`. A channel is blocked automatically (all steps except thumbs down) when one of them appears in:
+
+- the title of a video the child watched, or the channel's name, checked on every history check;
+- the channel's description or the titles of its newest videos (and Shorts). For this the site opens each channel from the history in the background, a few channels a minute, and checks each one again every two weeks or whenever the word list changes.
+
+Matching ignores capitals, spaces and punctuation, reads numbers as digits, Roman numerals or words, and knows a few game abbreviations, so `gta6` also catches "GTA 6", "#GTA6", "GTA VI", "GTA Six" and "Grand Theft Auto 6", but not "GTA 60fps" or "GTA Vice City". Settings shows the other spellings each word catches and how many channels have been checked. Every automatic block is listed in **Recent activity**, and its card on the Blocked tab says which word caught it and where. If it caught the wrong channel, tap **Unblock**: keywords leave that channel alone from then on. Removing a word doesn't unblock anything already blocked.
+
 **Recent activity** shows what ran and the full technical log for each task, which is what to send if something says it failed.
 
 ## Automatic updates
